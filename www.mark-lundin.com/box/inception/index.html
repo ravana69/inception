@@ -1,0 +1,727 @@
+<!DOCTYPE html >
+<!--[if lt IE 7]>      <html lt-ie9 lt-ie8 lt-ie7"> <![endif]-->
+<!--[if IE 7]>         <html lt-ie9 lt-ie8"> <![endif]-->
+<!--[if IE 8]>         <html lt-ie9" > <![endif]-->
+<!--[if gt IE 8]><!--> <html> <!--<![endif]-->
+    
+<!-- Mirrored from www.mark-lundin.com/box/inception/ by HTTrack Website Copier/3.x [XR&CO'2014], Wed, 08 Jun 2022 11:48:54 GMT -->
+<!-- Added by HTTrack --><meta http-equiv="content-type" content="text/html;charset=utf-8" /><!-- /Added by HTTrack -->
+<head>
+        <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1"/>
+        <title>Mark Lundin - Inception Vertex Shader</title>
+        <meta name="description" content="Vertex shader that wraps geometry around a point in space" />
+        <meta name="og:description" content="Vertex shader that wraps geometry around a point in space" />
+        <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+        <meta property="og:title" content="Inception Vertex Shader" />
+        <meta property="og:image" content="" />
+        <meta property="fb:admins" content="694826465"/>
+        <meta property="og:type" content="company"/>
+        <meta property="og:url" content="/box/inception/"/>
+        <meta name="author" content="Mark Lundin">
+        <meta property="og:site_name" content="Mark Lundin"/>
+        <meta property="og:latitude" content="51.535638"/>
+        <meta property="og:longitude" content="-0.089344"/>
+        
+        <link href="http://www.mark-lundin.com/img/static/favicon.ico" rel="shortcut icon" type="image/x-icon" />
+        <script src="../../../code.jquery.com/jquery-1.7.min.js"></script>
+        <script src="../../js/main.js"></script>
+        <script src="../../../ajax.googleapis.com/ajax/libs/webfont/1.4.7/webfont.js"></script>
+        <link href='http://fonts.googleapis.com/css?family=Nixie+One' rel='stylesheet' type='text/css'>
+        <link href="../../../netdna.bootstrapcdn.com/font-awesome/4.1.0/css/font-awesome.min.css" rel="stylesheet">
+        <script>
+          WebFont.load({
+            google: { families: [ 'Inconsolata:400,700:latin' ] }
+          });
+        </script>
+    </head>
+    <body>
+        <div id="fb-root"></div>
+        <script>(function(d, s, id) {
+          var js, fjs = d.getElementsByTagName(s)[0];
+          if (d.getElementById(id)) return;
+          js = d.createElement(s); js.id = id;
+          js.src = "../../../connect.facebook.net/en_GB/all.js#xfbml=1&status=0";
+          fjs.parentNode.insertBefore(js, fjs);
+        }(document, 'script', 'facebook-jssdk'));</script>
+		<style type="text/css">
+	body {
+		background: #000;
+		color: #fff;
+		padding: 0;
+		margin: 0;
+		font-weight: bold;
+		overflow:hidden;
+	}
+	.twitter-follow-button{
+		margin: 10px;
+	}
+</style>
+<div id="container"></div>
+<a href="https://twitter.com/mark_lundin" class="twitter-follow-button" data-show-count="false">Follow @mark_lundin</a>
+
+<script src="js/three.js"></script>
+<script src="js/dat.gui.min.js"></script>
+<script src="js/Detector.js"></script>
+<script src="js/FirstPersonControls.js"></script>
+<script src="js/TrackballControls.js"></script>
+<script src="js/shaders/CopyShader.js"></script>
+<script src="js/shaders/HorizontalTiltShiftShader.js"></script>
+<script src="js/shaders/VerticalTiltShiftShader.js"></script>
+<script src="js/shaders/FXAAShader.js"></script>
+<script src="js/postprocessing/ShaderPass.js"></script>
+<script src="js/postprocessing/MaskPass.js"></script>	
+<script src="js/postprocessing/EffectComposer.js"></script>
+<script src="js/postprocessing/RenderPass.js"></script>
+
+<script>
+
+window.onload = function() {
+
+	if ( ! Detector.webgl ) Detector.addGetWebGLMessage();
+
+	var MARGIN = 100;
+	var SCREEN_WIDTH = window.innerWidth;
+	var SCREEN_HEIGHT = window.innerHeight - 2 * MARGIN;
+
+	var SCALE = 1;
+
+	var container, stats;
+
+	var camera, scene, renderer, material, geo, mesh, camTarget;
+
+	var clock = new THREE.Clock();
+
+ 	
+
+
+	function init() {
+
+		container = document.getElementById( 'container' );
+
+		var FAR = 1000;
+
+		// camera
+		camera = new THREE.PerspectiveCamera( 45, SCREEN_WIDTH / SCREEN_HEIGHT, 1, FAR );
+		camera.position.z = 25;
+		camera.position.y = 0.5;
+		camTarget = new THREE.Vector3();
+		
+
+
+
+		// scene
+		scene = new THREE.Scene();
+		scene.add( camera );
+
+
+		// lights
+
+		var ambient = new THREE.AmbientLight( 0xffffff );
+		ambient.color.setHSV( 0, 0, 0.5 );
+		scene.add( ambient );
+
+		var dirLight = new THREE.DirectionalLight( 0xffffff, 1 );
+		dirLight.position.set( 1, 0.25, 1 );
+		scene.add( dirLight );
+
+		var dirLight2 = new THREE.DirectionalLight( 0xffffff );
+		dirLight2.position.set( 15, 15.5, 15 );
+
+		dirLight2.castShadow = true;
+		dirLight2.onlyShadow = true;
+		//dirLight2.shadowCameraVisible = true;
+		dirLight2.shadowCameraNear = 0.1;
+		dirLight2.shadowCameraFar = 50;
+
+		dirLight2.shadowDarkness = 0.25;
+		dirLight2.shadowMapWidth = 2048;
+		dirLight2.shadowMapHeight = 2048;
+
+		var d = 15;
+		dirLight2.shadowCameraLeft = -d * 2;
+		dirLight2.shadowCameraRight = d * 2;
+		dirLight2.shadowCameraTop = d;
+		dirLight2.shadowCameraBottom = -d;
+		
+
+
+		var vertexShader = [
+
+			"#define PHONG",
+
+			"varying vec3 vViewPosition;",
+			"varying vec3 vNormal;",
+
+			"uniform float radius;",
+			"uniform float distance;",
+
+			THREE.ShaderChunk[ "map_pars_vertex" ],
+			THREE.ShaderChunk[ "lightmap_pars_vertex" ],
+			THREE.ShaderChunk[ "envmap_pars_vertex" ],
+			THREE.ShaderChunk[ "lights_phong_pars_vertex" ],
+			THREE.ShaderChunk[ "color_pars_vertex" ],
+			THREE.ShaderChunk[ "morphtarget_pars_vertex" ],
+			THREE.ShaderChunk[ "skinning_pars_vertex" ],
+			THREE.ShaderChunk[ "shadowmap_pars_vertex" ],
+
+			"void main() {",
+
+				THREE.ShaderChunk[ "map_vertex" ],
+				THREE.ShaderChunk[ "lightmap_vertex" ],
+				THREE.ShaderChunk[ "color_vertex" ],
+
+				THREE.ShaderChunk[ "morphnormal_vertex" ],
+				THREE.ShaderChunk[ "skinbase_vertex" ],
+				THREE.ShaderChunk[ "skinnormal_vertex" ],
+				THREE.ShaderChunk[ "defaultnormal_vertex" ],
+
+				"vNormal = normalize( transformedNormal );",
+
+				THREE.ShaderChunk[ "morphtarget_vertex" ],
+				THREE.ShaderChunk[ "skinning_vertex" ],
+
+				"vec4 mvPosition;",
+
+				"#ifdef USE_SKINNING",
+
+					"mvPosition = modelViewMatrix * skinned;",
+
+				"#endif",
+
+				"#if !defined( USE_SKINNING ) && defined( USE_MORPHTARGETS )",
+
+					"mvPosition = modelViewMatrix * vec4( morphed, 1.0 );",
+
+				"#endif",
+
+				"#if !defined( USE_SKINNING ) && ! defined( USE_MORPHTARGETS )",
+
+					
+					"vec4 mwPosition = modelMatrix * vec4( position, 1.0 );",
+
+					"float inradius = radius - mwPosition.y;",
+					"float bound = max( 0.0, distance );",
+					"vec2 origin = vec2( 0.0 );",
+
+					"vec2 dir = vec2( 0.0, mwPosition.z ) - vec2( 0.0, origin.y );",
+					"float d = length( dir );",
+					"float amount = step( bound, d );",
+					"float theta = max( d - bound, 0.0 ) / radius;",
+					"float elev = ( radius - ( cos( theta ) * inradius ) );",
+					"float depth = sin( theta ) * inradius;",
+					"dir = normalize( dir ) * ( min( d, bound ) + depth );",
+
+					"vec4 newPosition = vec4( mwPosition.x, elev, dir.y, 1.0 );",
+					"mvPosition = viewMatrix * newPosition;",
+
+
+				"#endif",
+
+				"gl_Position = projectionMatrix * mvPosition;",
+
+				"vViewPosition = -mvPosition.xyz;",
+
+				THREE.ShaderChunk[ "worldpos_vertex" ],
+				THREE.ShaderChunk[ "envmap_vertex" ],
+				THREE.ShaderChunk[ "lights_phong_vertex" ],
+				THREE.ShaderChunk[ "shadowmap_vertex" ],
+
+			"}"
+
+		].join("\n")
+
+		var phongMaterial = new THREE.MeshPhongMaterial({ 
+			ambient: 0x000000,
+			color: 0xffffff,
+			specular: 0x555555,
+			shininess: 30,
+			shading: THREE.FlatShading
+			// wireframe: true,
+			// side: THREE.DoubleSide
+		});
+
+
+		var phong = THREE.ShaderLib['phong'];
+		var uniforms = THREE.UniformsUtils.merge( [
+
+			phong.uniforms,
+
+			{
+				"radius" :  { type: "f", value: 10000.0 },
+				"distance" :  { type: "f", value: 300.0 },
+			}
+		]);
+
+
+		shaderMaterial = new THREE.ShaderMaterial({
+			uniforms: uniforms,
+			vertexShader: vertexShader,
+			fragmentShader: phong.fragmentShader,
+			shading: phongMaterial.shading,
+			ambient: new THREE.Color( 0xaaaaaa ),
+			
+			color: new THREE.Color( 0xaaaaaa ),
+			specular: new THREE.Color( 0xaaaaaa ),
+			shininess: 30,
+
+			lights: true,
+			fog: true,
+
+			metal: false,
+			perPixel: true,
+			side: THREE.FrontSide,
+
+			wrapAround: false,
+			wrapRGB: new THREE.Vector3( 1, 1, 1 ),
+
+			map: null,
+
+			lightMap: null,
+
+			bumpMap: null,
+			bumpScale: 1,
+
+			normalMap: null,
+			normalScale: new THREE.Vector2( 1, 1 ),
+
+			specularMap: null,
+
+			envMap: null,
+			combine: THREE.MultiplyOperation,
+			reflectivity: 1,
+			refractionRatio: 0.98,
+
+			wireframe: false,
+			wireframeLinewidth: 1,
+			wireframeLinecap: 'round',
+			wireframeLinejoin: 'round',
+
+			vertexColors: THREE.FaceColors,
+
+			skinning: false,
+			morphTargets: false,
+			morphNormals: false
+		})
+
+		shaderMaterial.emissive = new THREE.Color( 0x000000 ),
+		shaderMaterial.emissive.setHSV( 0, 0, 0.35 );
+
+		shaderMaterial1 = shaderMaterial.clone();
+		// shaderMaterial1.wireframe = true;
+
+		// ground
+		
+
+		var groundGeo = new THREE.PlaneGeometry( 12, 600, 1, 100 );
+		applyColor( groundGeo, 0, 0, 0.4 );
+
+		var mesh = new THREE.Mesh( groundGeo, shaderMaterial1 );
+		mesh.rotation.x = -Math.PI/2;
+		mesh.position.y = -2.5;
+		mesh.position.z = 300;
+
+		mesh.receiveShadow = true;
+
+		scene.add( mesh );
+
+		// back
+
+		var sideGeo = new THREE.PlaneGeometry( 100, 600, 100, 100/*, 1, shaderMaterial, { ny: false } */);
+
+		var mesh = new THREE.Mesh( sideGeo, shaderMaterial1 );
+		mesh.position.y = -2.95 + 0.35;
+		mesh.position.z = 300;
+		mesh.rotation.x = -Math.PI/2;
+		mesh.receiveShadow = true;
+		// scene.add( mesh );
+
+		var mesh = new THREE.Mesh( sideGeo, shaderMaterial1 );
+		mesh.position.y = -2.95 + 0.35;
+		// mesh.position.x = - ( 250 + 9 );
+		mesh.position.z = 300;
+		mesh.rotation.x = -Math.PI/2;
+		mesh.receiveShadow = true;
+		scene.add( mesh );
+
+		// sidewalk
+
+		var sideGeo = new THREE.CubeGeometry( 4, 1, 600, 1, 1, 100 );
+		applyColor( sideGeo, 0, 0, 0.65 );
+
+		var mesh = new THREE.Mesh( sideGeo, shaderMaterial1 );
+		mesh.position.y = -2.95;
+		mesh.position.x = 2 + 6;
+		mesh.position.z = 300;
+		mesh.receiveShadow = true;
+		scene.add( mesh );
+
+		var mesh = new THREE.Mesh( sideGeo, shaderMaterial1 );
+		mesh.position.y = -2.95;
+		mesh.position.x = - ( 2 + 6 );
+		mesh.position.z = 300;
+		mesh.receiveShadow = true;
+		scene.add( mesh );
+
+		var curbGeo = new THREE.CubeGeometry( 0.25, 1.25, 600, 1, 1, 100 );
+		applyColor( curbGeo, 0, 0, 0.85 );
+
+		var mesh = new THREE.Mesh( curbGeo, shaderMaterial1 );
+		mesh.position.y = -2.95;
+		mesh.position.x = -6;
+		mesh.position.z = 300;
+		mesh.receiveShadow = true;
+		scene.add( mesh );
+
+		var mesh = new THREE.Mesh( curbGeo, shaderMaterial1 );
+		// var mesh = new THREE.Mesh( curbGeo, shaderMaterial1 );
+		mesh.position.y = -2.95;
+		mesh.position.x = 6;
+		mesh.position.z = 300;
+		mesh.receiveShadow = true;
+		scene.add( mesh );
+
+		//Road
+		var geo = new THREE.PlaneGeometry( 0.6, 10, 1, 3 );
+		var mergedGeo = new THREE.Geometry();
+
+		for( var i = 0 ; i < 10 ; i++ )
+		{
+			mesh = new THREE.Mesh( geo, shaderMaterial );
+			mesh.position.y = i * -15;
+
+			// mesh.matrixAutoUpdate = false;
+			// mesh.updateMatrix();
+			applyColor( geo, 1, 1, 1 );
+
+			THREE.GeometryUtils.merge( geo, mesh );
+		}
+
+		var mesh = new THREE.Mesh( geo, shaderMaterial1 );
+		mesh.rotation.x = -Math.PI/2;
+		mesh.position.y = -2;
+		// mesh.position.y = -2.95;
+		// mesh.position.x = 6;
+		// mesh.position.z = 250;
+		// mesh.receiveShadow = true;
+		
+		scene.add( mesh );
+
+		var mergedGeo = new THREE.Geometry();
+
+		// buildings
+
+		var a = 1;
+		var cubeGeo = new THREE.CubeGeometry( a, a, a, 1, 1, 1 );
+		var mesh;
+		for ( var i = 0; i < 10000; i ++ ) {
+
+			var sy = 1 + Math.sin( 0.5 * Math.random() ) * 60;
+			var sx = 1 * 5 * Math.random();
+			var sz = 1 + 5 * Math.random();
+
+			mesh = new THREE.Mesh( cubeGeo, shaderMaterial );
+
+			mesh.position.x = ( Math.random() < 0.5 ? 1 : -1 ) * THREE.Math.randFloat( 11, 200 );
+			// sy *= 0.25 * Math.abs( mesh.position.x );
+
+			mesh.position.y = 0.5 * ( sy * a );
+			mesh.position.z = 600 * Math.random();// + -300;
+
+			mesh.scale.set( sx, sy, sz );
+
+			mesh.matrixAutoUpdate = false;
+			mesh.updateMatrix();
+
+			var h = 0.02;
+			var v = 0.25 + 0.75 * Math.random();
+			var s = Math.random() < 0.05 ? 1: 0;
+
+			applyColor( cubeGeo, h, 0, v );
+
+			THREE.GeometryUtils.merge( mergedGeo, mesh );
+
+		}
+
+		// lamps
+
+		var b = 4;
+		var c = 1;
+
+		var cubeGeo2 = new THREE.CubeGeometry( 0.1, b, 0.1, 1, 1, 1);
+		var cubeGeo3 = new THREE.CubeGeometry( 0.15, c, 0.15, 1, 1, 1);
+		var cubeGeo4 = new THREE.CubeGeometry( 0.25, 0.25, 0.25, 1, 1, 1);
+
+		function addPart( geo, x, y, z, h, s, v ) {
+
+			var mesh = new THREE.Mesh( geo, shaderMaterial );
+
+			mesh.position.set( x, y, z );
+
+			mesh.matrixAutoUpdate = false;
+			mesh.updateMatrix();
+
+			applyColor( geo, h, s, v );
+
+			THREE.GeometryUtils.merge( mergedGeo, mesh );
+
+		}
+
+		var mesh = new THREE.Mesh( mergedGeo, shaderMaterial );
+		mesh.position.y = -2.95;
+		scene.add( mesh );
+
+		//
+
+		var mergedGeo = new THREE.Geometry();
+
+		var x, y, z, h, s, v;
+		var xd = 6.5;
+
+		var points = [];
+
+		for ( var i = 0; i < 25; i ++ ) {
+
+			//
+
+			x = xd;
+			y = b * 0.5;
+			z = i * 10;
+
+			h = 0.05;
+			s = 0.1;
+			v = 0.5;
+
+			addPart( cubeGeo2, x, y, z, h, s, v );
+
+			x = xd;
+			y = c * 0.5;
+			z = i * 10;
+
+			h = 0;
+			s = 0.35;
+			v = 0.5;
+
+			addPart( cubeGeo3, x, y, z, h, s, v );
+
+			y = b;
+
+			s = 0;
+			v = 0.95;
+
+			addPart( cubeGeo4, x, y, z, h, s, v );
+
+			points.push( new THREE.Vector3( x+0.2, y, z+0.2 ) );
+			points.push( new THREE.Vector3( x+0.2, y, z-0.2 ) );
+			points.push( new THREE.Vector3( x-0.2, y, z-0.2 ) );
+			points.push( new THREE.Vector3( x-0.2, y, z+0.2 ) );
+
+			//
+
+			x = -xd;
+			y = b * 0.5;
+			z = i * 10;
+
+			h = 0.05 * Math.random();
+			s = 0.1;
+			v = 0.5;
+
+			addPart( cubeGeo2, x, y, z, h, s, v );
+
+			x = -xd;
+			y = c * 0.5;
+			z = i * 10;
+
+			h = 0;
+			s = 0.35;
+			v = 0.5;
+
+			addPart( cubeGeo3, x, y, z, h, s, v );
+
+			y = b;
+
+			s = 0;
+			v = 0.95;
+
+			addPart( cubeGeo4, x, y, z, h, s, v );
+
+			points.push( new THREE.Vector3( x+0.2, y, z+0.2 ) );
+			points.push( new THREE.Vector3( x+0.2, y, z-0.2 ) );
+			points.push( new THREE.Vector3( x-0.2, y, z-0.2 ) );
+			points.push( new THREE.Vector3( x-0.2, y, z+0.2 ) );
+
+		}
+
+
+		var mesh = new THREE.Mesh( mergedGeo, shaderMaterial );
+		mesh.position.y = -2.95;
+		mesh.castShadow = true;
+		scene.add( mesh );
+
+		var particleGeo = new THREE.Geometry();
+
+		for ( var i = 0; i < points.length; i ++ ) {
+
+			var vertex = new THREE.Vector3( points[ i ] );
+			particleGeo.vertices[ i ] = vertex;
+
+		}
+
+		var map = THREE.ImageUtils.loadTexture( "image/lensflare0_alpha.png" );
+		var particleMaterial = new THREE.ParticleBasicMaterial( { size: 2.5, color: 0xffffff, map: map, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false } );
+
+		var particles = new THREE.ParticleSystem( particleGeo, particleMaterial );
+		particles.position.y = -2.95;
+		// scene.add( particles );
+
+		
+		scene.fog = new THREE.Fog( 0x000000, 10, FAR );
+		
+
+		// renderer
+		renderer = new THREE.WebGLRenderer( { antialias: false, alpha: false } );
+		renderer.setSize( SCREEN_WIDTH, SCREEN_HEIGHT );
+		renderer.setClearColor( scene.fog.color, 1 );
+		renderer.domElement.style.position = "absolute";
+		renderer.domElement.style.top = MARGIN + "px";
+		renderer.domElement.style.left = "0px";
+		container.appendChild( renderer.domElement );
+
+		// renderer.gammaInput = true;
+		// renderer.gammaOutput = true;
+		// renderer.physicallyBasedShading = true;
+
+		controls = new THREE.FirstPersonControls( camera, renderer.domElement );
+		// controls = new THREE.TrackballControls( camera, renderer.domElement );
+		// controls.dynamicDampingFactor = 0.2;
+		controls.movementSpeed = 0.0;
+		controls.constrainVertical = true;
+
+		var range = 0.8 * Math.PI;
+		controls.verticalMin = ( Math.PI - range ) / 2;
+		controls.verticalMax = Math.PI - (( Math.PI - range ) / 2);
+
+		// composer
+		renderTargetParametersRGB  = { minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, format: THREE.RGBFormat };
+		renderTargetParametersRGBA = { minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, format: THREE.RGBAFormat };
+		depthTarget = new THREE.WebGLRenderTarget( SCALE * SCREEN_WIDTH, SCALE * SCREEN_HEIGHT, renderTargetParametersRGBA );
+		colorTarget = new THREE.WebGLRenderTarget( SCALE * SCREEN_WIDTH, SCALE * SCREEN_HEIGHT, renderTargetParametersRGBA );
+		
+		composer = new THREE.EffectComposer( renderer, colorTarget );
+
+		var renderPass = new THREE.RenderPass( scene, camera );
+		var hTiltShiftPass = new THREE.ShaderPass( THREE.HorizontalTiltShiftShader );
+		var vTiltShiftPass = new THREE.ShaderPass( THREE.VerticalTiltShiftShader );
+		var fxaaPass = new THREE.ShaderPass( THREE.FXAAShader );
+
+		// composer.addPass( renderPass );
+		composer.addPass( fxaaPass );
+		composer.addPass( hTiltShiftPass );
+		composer.addPass( vTiltShiftPass );
+
+		bluriness = 3;
+
+		hTiltShiftPass.uniforms[ 'h' ].value = bluriness / ( SCALE * SCREEN_WIDTH );
+		vTiltShiftPass.uniforms[ 'v' ].value = bluriness / ( SCALE * SCREEN_HEIGHT );
+		hTiltShiftPass.uniforms[ 'r' ].value = vTiltShiftPass.uniforms[ 'r' ].value = 0.5;
+		fxaaPass.uniforms[ 'resolution' ].value.set( 1 / ( SCALE * SCREEN_WIDTH ), 1 / ( SCALE * SCREEN_HEIGHT ) );
+
+		composer.passes[composer.passes.length-1].renderToScreen = true;
+		
+
+		// gui
+		
+		api = {}
+		api.radius = 150;
+		api.curl = 300;
+
+		var gui = new dat.GUI();
+		// gui.add( api, 'radius', 10, 100 );
+		gui.add( api, 'curl', 10, 1000 ).listen();
+
+		window.addEventListener( 'resize', onWindowResize, false );
+
+		function onWindowResize( event ) {
+
+			SCREEN_WIDTH = window.innerWidth;
+			SCREEN_HEIGHT = window.innerHeight - 2 * MARGIN;
+
+			renderer.setSize( SCREEN_WIDTH, SCREEN_HEIGHT );
+
+			camera.aspect = SCREEN_WIDTH / SCREEN_HEIGHT;
+			camera.updateProjectionMatrix();
+
+			depthTarget = new THREE.WebGLRenderTarget( SCALE * SCREEN_WIDTH, SCALE * SCREEN_HEIGHT, renderTargetParametersRGBA );
+			colorTarget = new THREE.WebGLRenderTarget( SCALE * SCREEN_WIDTH, SCALE * SCREEN_HEIGHT, renderTargetParametersRGB );
+
+			hTiltShiftPass.uniforms[ 'h' ].value = bluriness / ( SCALE * SCREEN_WIDTH );
+			vTiltShiftPass.uniforms[ 'v' ].value = bluriness / ( SCALE * SCREEN_HEIGHT );
+			fxaaPass.uniforms[ 'resolution' ].value.set( 1 / ( SCALE * SCREEN_WIDTH ), 1 / ( SCALE * SCREEN_HEIGHT ) );
+			// effectSSAO.uniforms[ 'size' ].value.set( SCALE * SCREEN_WIDTH, SCALE * SCREEN_HEIGHT );
+
+			composer.reset( colorTarget );
+			
+			
+
+		}
+
+	}
+
+	function applyColor( geo, h, s, v ) {
+
+		for ( var j = 0, jl = geo.faces.length; j < jl; j ++ ) {
+
+			geo.faces[ j ].color.setHSV( h, s, v );
+
+		}
+
+	}
+
+
+
+	function animate() {
+
+		requestAnimationFrame( animate );
+
+		render();
+
+	}
+
+	var time
+	function render() {
+
+		time = Date.now() - now;
+		api.curl = ( 1.0 - ( 0.5 * Math.sin( time * 0.0001 + 0.5 ) + 0.5 )) * 600 + 50;
+
+		controls.update( 0.1 );
+		shaderMaterial1.uniforms['radius'].value = shaderMaterial.uniforms['radius'].value = api.radius;
+		shaderMaterial1.uniforms['distance'].value = shaderMaterial.uniforms['distance'].value = api.curl;			
+		renderer.render( scene, camera, composer.renderTarget2, true );
+		composer.render( 0.1 )
+
+	}
+
+	
+	init();
+	now = Date.now();
+	animate();
+}
+
+</script>
+
+
+
+        <script type="text/javascript" async src="../../../apis.google.com/js/plusone.js"></script>
+<script type="text/javascript" async src="../../../platform.twitter.com/widgets.js"></script>
+        <script>
+    var _gaq=[['_setAccount','UA-37953166-1'],['_trackPageview']];
+    (function(d,t){var g=d.createElement(t),s=d.getElementsByTagName(t)[0];
+    g.src=('https:'==location.protocol?'//ssl':'//www')+'.google-analytics.com/ga.js';
+    s.parentNode.insertBefore(g,s)}(document,'script'));
+</script>
+        
+        <script src="../../js/jquery.fitvids.js"></script>
+    </body>
+
+<!-- Mirrored from www.mark-lundin.com/box/inception/ by HTTrack Website Copier/3.x [XR&CO'2014], Wed, 08 Jun 2022 11:49:05 GMT -->
+</html>
